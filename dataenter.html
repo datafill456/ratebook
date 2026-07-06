@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RateBook — Daily Rates Entry & Distribution</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+:root{
+  --ink:#0b1f33; --ink2:#12304d; --slate:#1d3d5c; --line:#2a4b6b;
+  --paper:#f5f1e8; --paper2:#faf7f0; --card:#ffffff;
+  --amber:#c8860d; --amber-soft:#e9c47a; --amber-bg:#fbf2dd;
+  --green:#1f7a4d; --red:#b23b2e; --muted:#5f7386; --muted2:#8194a3;
+  --focus:#e0a92e;
+  --mono:"DM Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased}
+a{color:var(--amber)}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+/* Sidebar */
+.side{background:var(--ink);color:#cdd9e4;padding:0;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid #071726}
+.brand{padding:20px 20px 16px;border-bottom:1px solid var(--line)}
+.brand .logo{font-family:var(--mono);font-weight:500;font-size:15px;letter-spacing:.14em;color:#fff}
+.brand .logo b{color:var(--amber-soft)}
+.brand .sub{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-top:6px}
+.navgroup{padding:14px 12px 4px}
+.navgroup .gl{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#59748c;padding:0 8px 8px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;color:#c3d1de;text-decoration:none;font-size:13px;cursor:pointer;line-height:1.2}
+.nav a .dot{width:6px;height:6px;border-radius:50%;background:var(--line);flex:none}
+.nav a:hover{background:var(--ink2)}
+.nav a.active{background:var(--slate);color:#fff}
+.nav a.active .dot{background:var(--amber)}
+.nav a .k{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.side .foot{padding:16px 20px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);margin-top:8px;line-height:1.6}
+/* Main */
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{background:var(--paper2);border-bottom:1px solid #e3dcc9;padding:14px 26px;display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:20}
+.topbar h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.01em}
+.topbar .crumbs{font-size:11px;color:var(--muted);letter-spacing:.04em;margin-top:2px}
+.meta-inline{display:flex;align-items:center;gap:14px;margin-left:auto;font-size:12px}
+.meta-inline .field{display:flex;align-items:center;gap:6px}
+.meta-inline label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.meta-inline input{font-family:var(--mono);border:1px solid #d8cfb8;background:#fff;border-radius:6px;padding:5px 8px;font-size:12px;color:var(--ink);width:118px}
+.meta-inline input.rate{width:78px;text-align:right}
+.meta-inline input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px rgba(224,169,46,.18)}
+.sync{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);letter-spacing:.03em}
+.sync .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(31,122,77,.5)}
+.sync.on .pulse{animation:pulse 1.1s ease-out}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,122,77,.55)}100%{box-shadow:0 0 0 9px rgba(31,122,77,0)}}
+.content{padding:24px 26px 60px;max-width:1200px}
+/* Cards & tables */
+.card{background:var(--card);border:1px solid #e6e0d0;border-radius:12px;margin-bottom:22px;overflow:hidden;box-shadow:0 1px 2px rgba(11,31,51,.04)}
+.card>.head{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #eee7d6;background:linear-gradient(180deg,#fff, #fdfbf5)}
+.card>.head h3{margin:0;font-size:13px;font-weight:600;letter-spacing:.02em}
+.card>.head .tag{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--paper);border:1px solid #e6e0d0;padding:2px 7px;border-radius:20px}
+.card>.head .actions{margin-left:auto;display:flex;gap:7px}
+.card .body{padding:0}
+.hint{font-size:11.5px;color:var(--muted);padding:9px 16px;border-bottom:1px solid #f0ead9;background:#fcfaf3;line-height:1.5}
+.grid-wrap{overflow-x:auto}
+table.grid{border-collapse:collapse;width:100%;font-size:12.5px}
+table.grid th{background:var(--ink);color:#dfeaf3;font-weight:600;text-align:left;padding:8px 10px;font-size:11px;letter-spacing:.03em;position:sticky;top:0;white-space:nowrap}
+table.grid th .colmenu{float:right;cursor:pointer;color:#7f9ab2;padding-left:8px}
+table.grid th .colmenu:hover{color:#fff}
+table.grid td{border-bottom:1px solid #eef0f2;padding:0}
+table.grid tr:nth-child(even) td{background:#fbfcfd}
+table.grid tr:hover td{background:var(--amber-bg)}
+table.grid td input{width:100%;border:0;background:transparent;padding:7px 10px;font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+table.grid td.text input{font-family:var(--sans)}
+table.grid td.num input{text-align:right}
+table.grid td input:focus{outline:2px solid var(--focus);outline-offset:-2px;background:#fffdf6}
+table.grid td.rowact{width:34px;text-align:center}
+.iconbtn{border:0;background:transparent;cursor:pointer;color:var(--muted2);font-size:14px;line-height:1;padding:4px 6px;border-radius:5px}
+.iconbtn:hover{background:#eef1f4;color:var(--red)}
+tfoot td{padding:8px 10px;background:#fbf9f2}
+/* Buttons */
+.btn{border:1px solid #d8cfb8;background:#fff;color:var(--ink);border-radius:7px;padding:6px 12px;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--sans)}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn.amber{background:var(--amber);border-color:var(--amber);color:#fff}
+.btn.amber:hover{background:#b3770a;color:#fff}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.ghost:hover{background:#eef1f4;color:var(--ink)}
+.btn.sm{padding:4px 9px;font-size:11px}
+.btn.dark{background:var(--slate);border-color:var(--slate);color:#fff}
+.btn.dark:hover{background:var(--ink2)}
+/* Output document preview look */
+.doc{background:#fff;border:1px solid #e6e0d0;border-radius:10px;padding:26px 30px;margin-bottom:22px;font-size:13px;box-shadow:0 1px 3px rgba(11,31,51,.05)}
+.doc .dh{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em}
+.doc h2{font-size:16px;margin:2px 0 2px}
+.doc .addr{color:var(--muted);font-size:12px;line-height:1.5;margin:8px 0}
+.doc table.mini{border-collapse:collapse;margin:10px 0;font-family:var(--mono);font-size:12.5px}
+.doc table.mini th{background:var(--ink);color:#fff;padding:6px 12px;text-align:right;font-weight:500;font-size:11px}
+.doc table.mini th:first-child{text-align:left}
+.doc table.mini td{border:1px solid #e7e2d4;padding:5px 12px;text-align:right}
+.doc table.mini td:first-child{text-align:left;background:#faf7f0;font-family:var(--sans)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}.app{grid-template-columns:1fr}.side{position:static;height:auto}}
+.pagehdr{margin:0 0 16px}
+.pagehdr h2{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
+.pagehdr p{margin:0;color:var(--muted);font-size:13px;max-width:720px;line-height:1.55}
+.exportbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;background:var(--amber-bg);border:1px solid var(--amber-soft);border-radius:10px;margin-bottom:20px}
+.exportbar .lbl{font-size:12px;color:#6b4e12;font-weight:600;letter-spacing:.03em}
+.exportbar .fname{font-family:var(--mono);font-size:11px;color:#7a5a15}
+/* Structure editor */
+.colrow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #f0ead9}
+.colrow input{border:1px solid #ddd4bf;border-radius:6px;padding:5px 8px;font-size:12px}
+.colrow .ck{font-family:var(--mono);font-size:11px;color:var(--muted);width:120px}
+.colrow select{border:1px solid #ddd4bf;border-radius:6px;padding:5px 6px;font-size:12px}
+.badge{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:20px;background:var(--paper);border:1px solid #e6e0d0;color:var(--muted)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:11px 16px;border-radius:9px;font-size:13px;box-shadow:0 8px 24px rgba(11,31,51,.28);opacity:0;transform:translateY(8px);transition:.22s;z-index:100;display:flex;align-items:center;gap:9px}
+.toast.show{opacity:1;transform:none}
+.toast .ok{color:var(--amber-soft)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.flow .chip{font-size:11px;background:#fff;border:1px solid #e6e0d0;border-radius:20px;padding:4px 10px;color:var(--muted)}
+.flow .chip b{color:var(--ink);font-weight:600}
+.kbd{font-family:var(--mono);font-size:10.5px;background:#eef1f4;border:1px solid #dbe2e8;border-radius:4px;padding:1px 5px;color:var(--muted)}
+.subtabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid #e3dcc9;flex-wrap:wrap}
+.subtabs button{border:0;background:transparent;padding:8px 14px;font-size:12.5px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:var(--sans)}
+.subtabs button.active{color:var(--ink);border-bottom-color:var(--amber);font-weight:600}
+.hidden{display:none!important}
+.small{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">RATE<b>·</b>BOOK</div>
+      <div class="sub">One entry · every sheet</div>
+    </div>
+    <div class="navgroup">
+      <div class="nav" id="nav-entry"></div>
+    </div>
+    <div class="navgroup">
+      <div class="gl" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#59748c;padding:0 8px 8px">Distribution sheets</div>
+      <div class="nav" id="nav-views"></div>
+    </div>
+    <div class="navgroup">
+      <div class="gl" style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#59748c;padding:0 8px 8px">Configure</div>
+      <div class="nav" id="nav-config"></div>
+    </div>
+    <div class="foot">
+      Enter rates once. Every distribution sheet updates automatically. Export each as its own <span class="kbd">.xlsx</span>.
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="pgTitle">Data Entry</h1>
+        <div class="crumbs" id="pgCrumb">Master rates</div>
+      </div>
+      <div class="meta-inline">
+        <div class="field"><label>Report date</label><input type="date" id="mReportDate"></div>
+        <div class="field"><label>Spot bid</label><input class="rate" id="mSpotBid"></div>
+        <div class="field"><label>Spot offer</label><input class="rate" id="mSpotOffer"></div>
+        <div class="sync" id="syncBadge"><span class="pulse"></span><span id="syncText">Synced</span></div>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<div class="toast" id="toast"><span class="ok">✓</span><span id="toastMsg">Saved</span></div>
+<script id="seed" type="application/json">{"meta":{"reportDate":"2026-06-22","spotBid":334.75,"spotOffer":334.9,"broker":"MVS Money Brokers Limited"},"tables":{"tbill":{"label":"T-Bill Curve","cols":[["isin","ISIN","text"],["maturity","Maturity Date","date"],["offer","Offer","num"],["bid","Bid","num"]],"rows":[{"isin":"LKA36426F127","maturity":"2026-06-12","offer":9.4,"bid":9.8},{"isin":"LKA18226F123","maturity":"2026-06-12","offer":9.4,"bid":9.8},{"isin":"LKA09126F126","maturity":"2026-06-12","offer":9.5,"bid":9.8},{"isin":"LKA36426F192","maturity":"2026-06-19","offer":9.5,"bid":9.8},{"isin":"LKA18226F198","maturity":"2026-06-19","offer":9.5,"bid":9.8},{"isin":"LKA09126F191","maturity":"2026-06-19","offer":9.5,"bid":9.8},{"isin":"LKA36426F267","maturity":"2026-06-26","offer":9.6,"bid":9.9},{"isin":"LKA18226F263","maturity":"2026-06-26","offer":9.6,"bid":9.9},{"isin":"LKA09126F266","maturity":"2026-06-26","offer":9.6,"bid":9.9},{"isin":"LKA36426G034","maturity":"2026-07-03","offer":9.6,"bid":9.9},{"isin":"LKA18226G030","maturity":"2026-07-03","offer":9.6,"bid":9.9},{"isin":"LKA09126G033","maturity":"2026-07-03","offer":9.6,"bid":9.9},{"isin":"LKA36426G109","maturity":"2026-07-10","offer":9.6,"bid":9.9},{"isin":"LKA18226G105","maturity":"2026-07-10","offer":9.6,"bid":9.9},{"isin":"LKA09126G033","maturity":"2026-07-10","offer":9.6,"bid":9.9},{"isin":"LKA36426G174","maturity":"2026-07-17","offer":9.7,"bid":9.95},{"isin":"LKA18226G170","maturity":"2026-07-17","offer":9.7,"bid":9.95},{"isin":"LKA09126G173","maturity":"2026-07-17","offer":9.7,"bid":9.95},{"isin":"LKA36426G240","maturity":"2026-07-24","offer":9.7,"bid":9.95},{"isin":"LKA18226G246","maturity":"2026-07-24","offer":9.7,"bid":9.95},{"isin":"LKA09126G249","maturity":"2026-07-24","offer":9.7,"bid":9.95},{"isin":"LKA36426G315","maturity":"2026-07-31","offer":9.7,"bid":9.95},{"isin":"LKA18226G311","maturity":"2026-07-31","offer":9.8,"bid":9.95},{"isin":"LKA09126G314","maturity":"2026-07-31","offer":9.8,"bid":9.95},{"isin":"LKA09126H072","maturity":"2026-08-07","offer":9.8,"bid":10.0},{"isin":"LKA36426H073","maturity":"2026-08-07","offer":9.85,"bid":10.0},{"isin":"LKA18226H079","maturity":"2026-08-07","offer":9.85,"bid":10.0},{"isin":"LKA09126H148","maturity":"2026-08-14","offer":9.85,"bid":10.0},{"isin":"LKA36426H149","maturity":"2026-08-14","offer":9.9,"bid":10.0},{"isin":"LKA18226H145","maturity":"2026-08-14","offer":9.9,"bid":10.0},{"isin":"LKA09126H213","maturity":"2026-08-21","offer":9.9,"bid":10.05},{"isin":"LKA36426H214","maturity":"2026-08-21","offer":9.9,"bid":10.05},{"isin":"LKA18226H210","maturity":"2026-08-21","offer":9.9,"bid":10.05},{"isin":"LKA09126H288","maturity":"2026-08-28","offer":9.9,"bid":10.05},{"isin":"LKA36426H289","maturity":"2026-08-28","offer":9.9,"bid":10.05},{"isin":"LKA18226H285","maturity":"2026-08-28","offer":9.9,"bid":10.05},{"isin":"LKA09126I047","maturity":"2026-09-04","offer":9.95,"bid":10.1},{"isin":"LKA36426I048","maturity":"2026-09-04","offer":9.95,"bid":10.1},{"isin":"LKA18226I044","maturity":"2026-09-04","offer":9.95,"bid":10.1},{"isin":"LKA36426I113","maturity":"2026-09-11","offer":9.95,"bid":10.1},{"isin":"LKA18226I119","maturity":"2026-09-11","offer":9.95,"bid":10.1},{"isin":"LKA09126I112","maturity":"2026-09-11","offer":9.95,"bid":10.1},{"isin":"LKA36426I188","maturity":"2026-09-18","offer":9.95,"bid":10.15},{"isin":"LKA18226I184","maturity":"2026-09-18","offer":9.95,"bid":10.15},{"isin":"LKA09126I187","maturity":"2026-09-18","offer":9.95,"bid":10.15},{"isin":"LKA36426I253","maturity":"2026-09-25","offer":9.95,"bid":10.15},{"isin":"LKA18226I259","maturity":"2026-09-25","offer":9.95,"bid":10.15},{"isin":"LKA36426J020","maturity":"2026-10-02","offer":9.95,"bid":10.2},{"isin":"LKA18226J026","maturity":"2026-10-02","offer":9.95,"bid":10.2},{"isin":"LKA36426J095","maturity":"2026-10-09","offer":10.0,"bid":10.2},{"isin":"LKA36426J160","maturity":"2026-10-16","offer":10.0,"bid":10.2},{"isin":"LKA18226J166","maturity":"2026-10-16","offer":10.0,"bid":10.2},{"isin":"LKA36426J236","maturity":"2026-10-23","offer":10.0,"bid":10.2},{"isin":"LKA18226J232","maturity":"2026-10-23","offer":10.0,"bid":10.2},{"isin":"LKA36426J301","maturity":"2026-10-30","offer":10.0,"bid":10.2},{"isin":"LKA18226J307","maturity":"2026-10-30","offer":10.0,"bid":10.2},{"isin":"LKA18226K065","maturity":"2026-11-06","offer":10.0,"bid":10.2},{"isin":"LKA36426K069","maturity":"2026-11-06","offer":10.0,"bid":10.2},{"isin":"LKA36426K135","maturity":"2026-11-13","offer":10.05,"bid":10.2},{"isin":"LKA18226K131","maturity":"2026-11-13","offer":10.05,"bid":10.2},{"isin":"LKA36426K200","maturity":"2026-11-20","offer":10.05,"bid":10.2},{"isin":"LKA18226K206","maturity":"2026-11-20","offer":10.05,"bid":10.2},{"isin":"LKA36426K275","maturity":"2026-11-27","offer":10.05,"bid":10.2},{"isin":"LKA18226K271","maturity":"2026-11-27","offer":10.05,"bid":10.2},{"isin":"LKA18226L048","maturity":"2026-12-04","offer":10.05,"bid":10.25},{"isin":"LKA36426L042","maturity":"2026-12-04","offer":10.05,"bid":10.25},{"isin":"LKA36426L117","maturity":"2026-12-11","offer":10.05,"bid":10.25},{"isin":"LKA18226L113","maturity":"2026-12-11","offer":10.05,"bid":10.25},{"isin":"LKA36426L182","maturity":"2026-12-18","offer":10.05,"bid":10.25},{"isin":"LKA18226L188","maturity":"2026-12-18","offer":10.05,"bid":10.25},{"isin":"LKA36426L257","maturity":"2026-12-25","offer":10.05,"bid":10.25},{"isin":"LKA36427A019","maturity":"2027-01-01","offer":10.0,"bid":10.2},{"isin":"LKA36427A084","maturity":"2027-01-08","offer":10.0,"bid":10.2},{"isin":"LKA36427A159","maturity":"2027-01-15","offer":10.0,"bid":10.2},{"isin":"LKA36427A225","maturity":"2027-01-22","offer":10.0,"bid":10.2},{"isin":"LKA36427A290","maturity":"2027-01-29","offer":10.0,"bid":10.2},{"isin":"LKA36427B058","maturity":"2027-02-05","offer":10.0,"bid":10.2},{"isin":"LKA36427B124","maturity":"2027-02-12","offer":10.0,"bid":10.2},{"isin":"LKA36427B199","maturity":"2027-02-19","offer":10.0,"bid":10.2},{"isin":"LKA36427B264","maturity":"2027-02-26","offer":10.0,"bid":10.2},{"isin":"LKA36427B124","maturity":"2027-02-12","offer":10.0,"bid":10.2},{"isin":"LKA36427B199","maturity":"2027-02-19","offer":9.95,"bid":10.2},{"isin":"LKA36427B264","maturity":"2027-02-26","offer":9.95,"bid":10.2},{"isin":"LKA36427C056","maturity":"2027-03-05","offer":9.95,"bid":10.2},{"isin":"LKA36427C122","maturity":"2027-03-12","offer":9.95,"bid":10.2},{"isin":"LKA36427C197","maturity":"2027-03-19","offer":9.95,"bid":10.15},{"isin":"LKA36427C262","maturity":"2027-03-26","offer":9.95,"bid":10.15},{"isin":"LKA36427D021","maturity":"2027-04-02","offer":9.95,"bid":10.15},{"isin":"LKA36427D161","maturity":"2027-04-16","offer":9.95,"bid":10.15},{"isin":"LKA36427D237","maturity":"2027-04-23","offer":9.95,"bid":10.15},{"isin":"LKA36427D302","maturity":"2027-04-30","offer":9.95,"bid":10.15},{"isin":"LKA36427E078","maturity":"2027-05-07","offer":9.95,"bid":10.15},{"isin":"LKA36427E144","maturity":"2027-05-14","offer":9.95,"bid":10.15},{"isin":"LKA36427E219","maturity":"2027-05-21","offer":9.95,"bid":10.15},{"isin":"LKA36427E284","maturity":"2027-05-28","offer":9.95,"bid":10.15},{"isin":"LKA36427F042","maturity":"2027-06-04","offer":9.95,"bid":10.15},{"isin":"LKA36427F117","maturity":"2027-06-11","offer":9.95,"bid":10.15},{"isin":"LKA36427F182","maturity":"2027-06-18","offer":9.95,"bid":10.15}]},"tbond":{"label":"T-Bond Curve","cols":[["isin","ISIN","text"],["maturity","Maturity Date","date"],["offer","Offer","num"],["bid","Bid","num"]],"rows":[{"isin":"LKB01026H014","maturity":"2026-08-01","offer":9.75,"bid":10.15},{"isin":"LKB00326L151","maturity":"2026-12-15","offer":10.05,"bid":10.2},{"isin":"LKB00827A151","maturity":"2027-01-15","offer":10.1,"bid":10.3},{"isin":"LKB00527E019","maturity":"2027-05-01","offer":10.2,"bid":10.4},{"isin":"LKB01027F156","maturity":"2027-06-15","offer":10.25,"bid":10.4},{"isin":"LKB00527I150","maturity":"2027-09-15","offer":10.35,"bid":10.45},{"isin":"LKB00827J152","maturity":"2027-10-15","offer":10.35,"bid":10.5},{"isin":"LKB01027L154","maturity":"2027-12-15","offer":10.4,"bid":10.6},{"isin":"LKB00628A153","maturity":"2028-01-15","offer":10.5,"bid":10.6},{"isin":"LKB00428B156","maturity":"2028-02-15","offer":10.5,"bid":10.65},{"isin":"LKB01028C151","maturity":"2028-03-15","offer":10.55,"bid":10.65},{"isin":"LKB01528E016","maturity":"2028-05-01","offer":10.5,"bid":10.7},{"isin":"LKB01628G019","maturity":"2028-07-01","offer":10.5,"bid":10.7},{"isin":"LKB01528I017","maturity":"2028-09-01","offer":10.55,"bid":10.7},{"isin":"LKB00428J159","maturity":"2028-10-15","offer":10.55,"bid":10.75},{"isin":"LKB00528L152","maturity":"2028-12-15","offer":10.55,"bid":10.75},{"isin":"LKB01529E014","maturity":"2029-05-01","offer":10.7,"bid":10.9},{"isin":"LKB00529F152","maturity":"2029-06-15","offer":10.75,"bid":10.9},{"isin":"LKB00729G156","maturity":"2029-07-15","offer":10.75,"bid":10.9},{"isin":"LKB00629I154","maturity":"2029-09-15","offer":10.8,"bid":10.95},{"isin":"LKB00529J154","maturity":"2029-10-15","offer":10.85,"bid":10.95},{"isin":"LKB00529L150","maturity":"2029-12-15","offer":10.85,"bid":10.95},{"isin":"LKB00530C017","maturity":"2030-03-01","offer":11.0,"bid":11.1},{"isin":"LKB01530E152","maturity":"2030-05-15","offer":11.05,"bid":11.15},{"isin":"LKB00530G018","maturity":"2030-07-01","offer":11.15,"bid":11.25},{"isin":"LKB00530H016","maturity":"2030-08-01","offer":11.15,"bid":11.25},{"isin":"LKB00730J158","maturity":"2030-10-15","offer":11.15,"bid":11.25},{"isin":"LKB01231C151","maturity":"2031-03-15","offer":11.25,"bid":11.35},{"isin":"LKB00931E153","maturity":"2031-05-15","offer":11.25,"bid":11.4},{"isin":"LKB01031L016","maturity":"2031-12-01","offer":11.3,"bid":11.45},{"isin":"LKB01032G014","maturity":"2032-07-01","offer":11.35,"bid":11.5},{"isin":"LKB02032J017","maturity":"2032-10-01","offer":11.4,"bid":11.55},{"isin":"LKB00832L158","maturity":"2032-12-15","offer":11.45,"bid":11.55},{"isin":"LKB01533A154","maturity":"2033-01-15","offer":11.5,"bid":11.6},{"isin":"LKB02033F013","maturity":"2033-06-01","offer":11.55,"bid":11.65},{"isin":"LKB02033K013","maturity":"2033-11-01","offer":11.6,"bid":11.65},{"isin":"LKB00934F154","maturity":"1934-06-15","offer":11.6,"bid":11.7},{"isin":"LKB01534I155","maturity":"1934-09-15","offer":11.6,"bid":11.7},{"isin":"LKB02035C155","maturity":"2035-03-15","offer":11.7,"bid":11.85},{"isin":"LKB01035F159","maturity":"2035-06-15","offer":11.7,"bid":11.85},{"isin":"LKB01136H151","maturity":"2036-08-15","offer":11.8,"bid":12.0},{"isin":"LKB01237G019","maturity":"2037-07-01","offer":11.85,"bid":12.1}]},"premium":{"label":"FX Forward Premiums","cols":[["tenor","Tenor","text"],["nod","No. of Days","num"],["payer","Payer","num"],["receiver","Receiver","num"],["bid","Bid","num"],["offer","Offer","num"]],"rows":[{"tenor":"1W","nod":7.0,"payer":5.7,"receiver":6.6,"bid":39.9,"offer":46.2},{"tenor":"2W","nod":14.0,"payer":5.7,"receiver":6.6,"bid":79.8,"offer":92.4},{"tenor":"3W","nod":21.0,"payer":5.7,"receiver":6.6,"bid":119.7,"offer":138.6},{"tenor":"1M","nod":30.0,"payer":5.7,"receiver":6.6,"bid":171.0,"offer":198.0},{"tenor":"2M","nod":61.0,"payer":5.5,"receiver":6.0,"bid":335.5,"offer":366.0},{"tenor":"3M","nod":92.0,"payer":5.5,"receiver":6.0,"bid":506.0,"offer":552.0},{"tenor":"4M","nod":124.0,"payer":5.5,"receiver":6.0,"bid":682.0,"offer":744.0},{"tenor":"5M","nod":154.0,"payer":5.5,"receiver":6.0,"bid":847.0,"offer":924.0},{"tenor":"6M","nod":183.0,"payer":5.5,"receiver":6.0,"bid":1006.5,"offer":1098.0},{"tenor":"7M","nod":215.0,"payer":5.5,"receiver":6.0,"bid":1182.5,"offer":1290.0},{"tenor":"8M","nod":245.0,"payer":5.5,"receiver":6.0,"bid":1347.5,"offer":1470.0},{"tenor":"9M","nod":273.0,"payer":5.5,"receiver":6.0,"bid":1501.5,"offer":1638.0},{"tenor":"10M","nod":306.0,"payer":5.5,"receiver":6.0,"bid":1683.0,"offer":1836.0},{"tenor":"11M","nod":334.0,"payer":5.5,"receiver":6.0,"bid":1837.0,"offer":2004.0},{"tenor":"12M","nod":365.0,"payer":5.5,"receiver":6.0,"bid":2007.5,"offer":2190.0}]},"call":{"label":"Call Money","cols":[["tenor","Tenor","text"],["bid","Bid","num"],["offer","Offer","num"]],"rows":[{"tenor":"1WK","bid":9.3,"offer":9.5},{"tenor":"2WK","bid":9.4,"offer":9.6},{"tenor":"3WK","bid":9.5,"offer":9.7},{"tenor":"1M","bid":9.65,"offer":10.0},{"tenor":"2M","bid":9.75,"offer":10.1},{"tenor":"3M","bid":9.85,"offer":10.2}]},"repo":{"label":"Repo","cols":[["tenor","Tenor","text"],["bid","Bid","num"],["offer","Offer","num"]],"rows":[{"tenor":"O/N","bid":9.21,"offer":9.25},{"tenor":"1WK","bid":9.45,"offer":9.6},{"tenor":"2WK","bid":9.5,"offer":9.65},{"tenor":"3WK","bid":9.55,"offer":9.7},{"tenor":"1M","bid":9.9,"offer":10.2}]},"money":{"label":"Money Market","cols":[["tenor","Tenor","text"],["bid","Bid","num"],["offer","Offer","num"]],"rows":[{"tenor":"O/N","bid":9.21,"offer":9.2},{"tenor":"1 Week","bid":9.3,"offer":9.5},{"tenor":"2 Week","bid":9.4,"offer":9.6}]},"outright":{"label":"FX Outright","cols":[["period","Period","text"],["bid","Bid","num"],["offer","Offer","num"]],"rows":[{"period":"SPOT","bid":334.75,"offer":334.9},{"period":"1Wk","bid":335.1,"offer":335.4},{"period":"1 Month","bid":336.6,"offer":336.9},{"period":"6 Month","bid":345.0,"offer":347.0}]},"swap":{"label":"Swap Points (short)","cols":[["period","Period","text"],["nod","No. of Days","num"],["payer","Payer","num"],["receiver","Receiver","num"]],"rows":[{"period":"Tdy","nod":2.0,"payer":12.0,"receiver":13.0},{"period":"Tom","nod":1.0,"payer":6.0,"receiver":7.0},{"period":"1 Week","nod":8.0,"payer":43.0,"receiver":45.0},{"period":"1 Month","nod":30.0,"payer":182.0,"receiver":188.0},{"period":"2 Months","nod":63.0,"payer":366.0,"receiver":381.0},{"period":"3 Months","nod":92.0,"payer":543.0,"receiver":566.0},{"period":"6 Months","nod":183.0,"payer":1007.0,"receiver":1098.0},{"period":"9 Months","nod":273.0,"payer":0.0,"receiver":0.0},{"period":"12 Months","nod":365.0,"payer":0.0,"receiver":0.0},{"period":"24 Months","nod":null,"payer":null,"receiver":null}]},"tbillPeriod":{"label":"T-Bill Period Summary","cols":[["period","Period","text"],["offer","Offer","num"],["bid","Bid","num"]],"rows":[{"period":"O/N","offer":9.25,"bid":9.5},{"period":"1 Month","offer":9.5,"bid":9.9},{"period":"3 Months","offer":9.9,"bid":10.1},{"period":"6 Months","offer":10.0,"bid":10.2},{"period":"9 Months","offer":10.05,"bid":10.2},{"period":"12 Months","offer":10.05,"bid":10.25}]},"lkr":{"label":"LKR Rates Summary","cols":[["tenor","Tenor","text"],["bid","LKR Bid","num"],["offer","LKR Offer","num"]],"rows":[{"tenor":"3M","bid":9.9,"offer":10.1},{"tenor":"6M","bid":10.0,"offer":10.2},{"tenor":"1Y","bid":10.05,"offer":10.25},{"tenor":"2Y","bid":null,"offer":null},{"tenor":"3Y","bid":null,"offer":null},{"tenor":"4Y","bid":null,"offer":null},{"tenor":"5Y","bid":null,"offer":null},{"tenor":"7Y","bid":null,"offer":null},{"tenor":"10Y","bid":null,"offer":null},{"tenor":"15Y","bid":null,"offer":null}]},"brokerBill":{"label":"Broker Sheet \u2014 Bills (MVS)","cols":[["maturity","Maturity Date","date"],["bid","MVS Bid","num"],["ask","MVS Ask","num"]],"rows":[{"maturity":"19-Jun-2026","bid":9.5,"ask":9.8},{"maturity":"3-Jul-2026","bid":9.6,"ask":9.9},{"maturity":"10-Jul-2026","bid":9.6,"ask":9.9},{"maturity":"17-Jul-2026","bid":9.7,"ask":9.95},{"maturity":"24-Jul-2026","bid":9.7,"ask":9.95},{"maturity":"31-Jul-2026","bid":9.7,"ask":9.95},{"maturity":"7-Aug-2026","bid":9.8,"ask":10},{"maturity":"14-Aug-2026","bid":9.85,"ask":10},{"maturity":"4-Sep-2026","bid":9.95,"ask":10.1},{"maturity":"22-Jan-2027","bid":10,"ask":10.2},{"maturity":"5-Feb-2027","bid":10,"ask":10.2},{"maturity":"19-Feb-2027","bid":10,"ask":10.2}]},"brokerBond":{"label":"Broker Sheet \u2014 Bonds (MVS)","cols":[["maturity","Maturity Date","date"],["bid","MVS Bid","num"],["ask","MVS Ask","num"]],"rows":[{"maturity":"1-Aug-2026","bid":9.75,"ask":10.15},{"maturity":"15-Dec-2026","bid":10.05,"ask":10.2},{"maturity":"15-Sep-2027","bid":10.35,"ask":10.45},{"maturity":"15-Feb-2028","bid":10.5,"ask":10.65},{"maturity":"1-May-2028","bid":10.5,"ask":10.7},{"maturity":"1-Jul-2028","bid":10.5,"ask":10.7},{"maturity":"15-Oct-2028","bid":10.55,"ask":10.75},{"maturity":"15-Jun-2029","bid":10.75,"ask":10.9},{"maturity":"15-Dec-2029","bid":10.85,"ask":10.95},{"maturity":"1-Mar-2030","bid":11,"ask":11.1},{"maturity":"15-May-2030","bid":11.05,"ask":11.15},{"maturity":"1-Jul-2030","bid":11.15,"ask":11.25},{"maturity":"15-Mar-2031","bid":11.25,"ask":11.35},{"maturity":"15-Dec-2032","bid":11.45,"ask":11.55},{"maturity":"1-Jun-2033","bid":11.55,"ask":11.65},{"maturity":"1-Nov-2033","bid":11.6,"ask":11.65},{"maturity":"15-Jun-2034","bid":11.6,"ask":11.7}]}},"brokers":["CENTRAL FOREX & MONEY BRO","BARTLEET, MACKLAI & ROY","GEORGE STEUARTS INVESTMENTS","TAPROBANE INVESTMENTS","FIRST ALLIANCE MONEY BRO","MVS MONEY BROKERS LTD","PIGOTT CHAPMAN AND CO","SMB MONEY BROKERS"]}</script>
+<script>/* ============================================================
+   MVS Rate Desk — client-side, GitHub-Pages friendly.
+   Single source of truth (DB) -> many distribution sheets.
+   ============================================================ */
+const SEED = JSON.parse(document.getElementById('seed').textContent);
+const LS_KEY = 'mvs_rate_desk_v1';
+let mem = null; // fallback store if localStorage blocked
+
+function load(){
+  try{ const s=localStorage.getItem(LS_KEY); if(s) return JSON.parse(s); }catch(e){}
+  if(mem) return mem;
+  return JSON.parse(JSON.stringify(SEED));
+}
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){ mem = JSON.parse(JSON.stringify(DB)); }
+  flashSync();
+}
+let DB = load();
+// Spot lives only in the top bar (single source). Drop any legacy SPOT row in outright.
+if(DB.tables && DB.tables.outright){
+  DB.tables.outright.rows = DB.tables.outright.rows.filter(r=>String(r.period).toUpperCase()!=='SPOT');
+}
+
+/* ---------- helpers ---------- */
+const $ = s=>document.querySelector(s);
+const el=(t,c,txt)=>{const e=document.createElement(t); if(c)e.className=c; if(txt!=null)e.textContent=txt; return e;};
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function parseDate(v){ // accept 'YYYY-MM-DD' or 'd-mmm-yyyy' or Date
+  if(!v && v!==0) return null;
+  if(v instanceof Date) return v;
+  if(typeof v==='number'){ const d=new Date(Date.UTC(1899,11,30)); d.setUTCDate(d.getUTCDate()+v); return d; }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/); if(m){const mo=MONTHS.findIndex(x=>x.toLowerCase()===m[2].toLowerCase()); if(mo>=0)return new Date(+m[3],mo,+m[1]);}
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function fmtDate(v){ const d=parseDate(v); if(!d) return v||''; return d.getDate()+'-'+MONTHS[d.getMonth()]+'-'+d.getFullYear(); }
+function toISO(v){ const d=parseDate(v); if(!d) return v||''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function excelSerial(v){ const d=parseDate(v); if(!d) return null; const base=Date.UTC(1899,11,30); return Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-base)/86400000); }
+function num(v){ if(v===''||v==null) return null; const n=Number(v); return isNaN(n)?v:n; }
+function nf(v,dec){ if(v==null||v==='') return ''; const n=Number(v); if(isNaN(n)) return v; return dec!=null? n.toFixed(dec): String(n); }
+
+/* ---------- sync + toast ---------- */
+let syncTimer=null;
+function flashSync(){
+  const b=$('#syncBadge'); b.classList.add('on'); $('#syncText').textContent='Saved';
+  clearTimeout(syncTimer); syncTimer=setTimeout(()=>{ b.classList.remove('on'); $('#syncText').textContent='Synced'; },1200);
+}
+function toast(msg){
+  const t=$('#toast'); $('#toastMsg').textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ---------- generic schema-driven grid ----------
+   Renders DB.tables[name] as an editable grid. Any edit writes back,
+   persists, refreshes the sync badge and re-renders the current page's
+   dependents so distribution sheets stay in step ("autofill").          */
+let pendingFocus=null;
+function applyPendingFocus(){
+  if(!pendingFocus) return;
+  const {name,r,c}=pendingFocus; pendingFocus=null;
+  const tbl=document.querySelector('table.grid[data-gridname="'+name+'"]');
+  if(!tbl) return;
+  const tr=tbl.querySelectorAll('tbody tr')[r]; if(!tr) return;
+  const inp=[...tr.querySelectorAll('input')][c];
+  if(inp){ inp.focus(); if(inp.select) inp.select(); }
+}
+/* write one value into a table cell with correct type coercion */
+function writeCell(name,ri,ci,val){
+  const t=DB.tables[name]; if(ci>=t.cols.length) return;
+  while(t.rows.length<=ri){ const nr={}; t.cols.forEach(c=>nr[c[0]]=null); t.rows.push(nr); }
+  const col=t.cols[ci], v=String(val).trim();
+  if(col[2]==='num') t.rows[ri][col[0]] = v===''?null:num(v);
+  else if(col[2]==='date') t.rows[ri][col[0]] = v===''?'':toISO(v);
+  else t.rows[ri][col[0]] = v;
+}
+/* paste a block copied from Excel/another grid: fills down & right, adds rows */
+function attachPaste(inp,name,ci,ri,opts){
+  inp.addEventListener('paste',e=>{
+    const cb=(e.clipboardData||window.clipboardData); if(!cb) return;
+    const text=cb.getData('text'); if(!text || !/[\t\n]/.test(text)) return; // single value -> normal paste
+    e.preventDefault();
+    const grid=text.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(l=>l.split('\t'));
+    grid.forEach((line,gr)=> line.forEach((val,gc)=> writeCell(name,ri+gr,ci+gc,val)));
+    save(); if(opts&&opts.onEdit)opts.onEdit();
+    pendingFocus={name,r:ri,c:ci}; rerender();
+    toast('Pasted '+grid.length+'×'+grid[0].length+' cells');
+  });
+}
+/* spreadsheet-style keyboard movement on a grid input */
+function attachNav(inp,name){
+  inp.addEventListener('keydown',e=>{
+    const tr=inp.closest('tr'), tbody=tr.parentNode;
+    const rows=[...tbody.children];
+    const r=rows.indexOf(tr);
+    const c=[...tr.querySelectorAll('input')].indexOf(inp);
+    const focusCell=(nr,nc)=>{ const row=rows[nr]; if(!row) return false;
+      const tgt=[...row.querySelectorAll('input')][nc]; if(!tgt) return false;
+      e.preventDefault(); tgt.focus(); if(tgt.select) tgt.select(); return true; };
+    const k=e.key;
+    if(k==='Enter'){
+      if(e.shiftKey){ focusCell(r-1,c); }
+      else if(r===rows.length-1){ e.preventDefault(); inp.dispatchEvent(new Event('change')); pendingFocus={name,r:r+1,c}; addRow(name); }
+      else focusCell(r+1,c);
+    }
+    else if(k==='ArrowDown'){ focusCell(r+1,c); }
+    else if(k==='ArrowUp'){ focusCell(r-1,c); }
+    else if(k==='ArrowLeft'){ if(inp.selectionStart===0 && inp.selectionEnd===0) focusCell(r,c-1); }
+    else if(k==='ArrowRight'){ if(inp.selectionStart===inp.value.length && inp.selectionEnd===inp.value.length) focusCell(r,c+1); }
+  });
+}
+function renderGrid(name, opts={}){
+  const t=DB.tables[name];
+  const wrap=el('div','grid-wrap');
+  const tbl=el('table','grid');
+  tbl.dataset.gridname=name;
+  const thead=el('thead'); const htr=el('tr');
+  t.cols.forEach((c,ci)=>{
+    const th=el('th',null,c[1]);
+    th.style.textAlign = c[2]==='num' ? 'right' : 'left';
+    htr.appendChild(th);
+  });
+  if(!opts.noRowActions){ const th=el('th'); th.style.width='34px'; htr.appendChild(th); }
+  thead.appendChild(htr); tbl.appendChild(thead);
+  const tb=el('tbody');
+  t.rows.forEach((row,ri)=>{
+    const tr=el('tr');
+    t.cols.forEach((c,ci)=>{
+      const isNum=c[2]==='num', isDate=c[2]==='date';
+      const td=el('td', isNum?'num':(isDate?'text':'text'));
+      const inp=el('input');
+      inp.value = isDate ? fmtDate(row[c[0]]) : (row[c[0]]==null?'':row[c[0]]);
+      inp.dataset.k=c[0];
+      inp.addEventListener('change',()=>{
+        let val=inp.value.trim();
+        if(isNum){ row[c[0]] = val===''?null:num(val); }
+        else if(isDate){ row[c[0]] = val===''?'':toISO(val); inp.value=fmtDate(row[c[0]]); }
+        else row[c[0]] = val;
+        save(); if(opts.onEdit) opts.onEdit();
+      });
+      attachNav(inp,name);
+      attachPaste(inp,name,ci,ri,opts);
+      td.appendChild(inp); tr.appendChild(td);
+    });
+    if(!opts.noRowActions){
+      const td=el('td','rowact');
+      const b=el('button','iconbtn','×'); b.title='Delete row'; b.tabIndex=-1;
+      b.onclick=()=>{ t.rows.splice(ri,1); save(); rerender(); if(opts.onEdit)opts.onEdit(); };
+      td.appendChild(b); tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  wrap.appendChild(tbl);
+  return wrap;
+}
+
+function addRow(name){
+  const t=DB.tables[name]; const r={}; t.cols.forEach(c=>r[c[0]]=null); t.rows.push(r); save(); rerender();
+}
+
+/* card wrapper for an editable master table */
+function tableCard(name, {tag,hint,onEdit}={}){
+  const t=DB.tables[name];
+  const card=el('div','card');
+  const head=el('div','head');
+  head.appendChild(el('h3',null,t.label));
+  if(tag){ head.appendChild(el('span','tag',tag)); }
+  const act=el('div','actions');
+  const addBtn=el('button','btn sm','+ Row'); addBtn.onclick=()=>{addRow(name); if(onEdit)onEdit();};
+  act.appendChild(addBtn);
+  head.appendChild(act);
+  card.appendChild(head);
+  if(hint){ card.appendChild(el('div','hint',hint)); }
+  const body=el('div','body'); body.appendChild(renderGrid(name,{onEdit})); card.appendChild(body);
+  return card;
+}
+
+/* ---------- routing ---------- */
+const PAGES=[
+  {id:'entry',   grp:'entry',  label:'Data Entry',        title:'Data Entry',            crumb:'Master rates — enter once'},
+  {id:'closing', grp:'views',  label:'Closing Rates',     title:'Closing Rates',         crumb:'Closing.xlsx',            file:'Closing.xlsx'},
+  {id:'fis',     grp:'views',  label:'FIS (Full)',        title:'FIS — Closing + Money', crumb:'FIS.xlsx',               file:'FIS.xlsx'},
+  {id:'fxprem',  grp:'views',  label:'FX Premiums',       title:'FX Forward Premiums',   crumb:'FX.xlsx / Rates.xlsx',    file:'FX.xlsx'},
+  {id:'fxdet',   grp:'views',  label:'FX Detailed',       title:'FX Forward — Detailed', crumb:'FX_1.xlsx',              file:'FX_1.xlsx'},
+  {id:'summary', grp:'views',  label:'Rates Summary',     title:'Global Markets Summary',crumb:'Rates_2.xlsx',           file:'Rates_2.xlsx'},
+  {id:'lkr',     grp:'views',  label:'Rates — LKR',       title:'LKR Rates Sheet',       crumb:'Rates_3.xlsx',           file:'Rates_3.xlsx'},
+  {id:'broker',  grp:'views',  label:'Broker Sheet',      title:'Broker Rate Sheet',     crumb:'T-Bill & T-Bond Input',  file:'T-Bill_T-Bond_Rate_Input_Sheet.xlsx'},
+  {id:'structure',grp:'config',label:'Columns & Structure',title:'Columns & Structure',  crumb:'Edit table schema'},
+  {id:'exportall',grp:'config',label:'Export & Verify', title:'Export & Verify',    crumb:'Generate & check every .xlsx'},
+];
+let current='entry';
+
+function buildNav(){
+  const groups={entry:$('#nav-entry'),views:$('#nav-views'),config:$('#nav-config')};
+  Object.values(groups).forEach(g=>g.innerHTML='');
+  PAGES.forEach(p=>{
+    const a=el('a'); a.dataset.id=p.id;
+    a.appendChild(el('span','dot'));
+    a.appendChild(el('span',null,p.label));
+    if(p.file){ const k=el('span','k','xlsx'); a.appendChild(k); }
+    a.onclick=()=>go(p.id);
+    groups[p.grp].appendChild(a);
+  });
+}
+function go(id){ current=id; buildNav(); const p=PAGES.find(x=>x.id===id);
+  $('#pgTitle').textContent=p.title; $('#pgCrumb').textContent=p.crumb;
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.id===id));
+  rerender(); window.scrollTo(0,0);
+}
+function rerender(){ renderPage(current); applyPendingFocus(); }
+
+/* ---------- meta bindings ---------- */
+function bindMeta(){
+  $('#mReportDate').value=toISO(DB.meta.reportDate);
+  $('#mSpotBid').value=DB.meta.spotBid; $('#mSpotOffer').value=DB.meta.spotOffer;
+  $('#mReportDate').onchange=e=>{DB.meta.reportDate=e.target.value; save(); rerender();};
+  $('#mSpotBid').onchange=e=>{DB.meta.spotBid=num(e.target.value); syncSpot(); save(); rerender();};
+  $('#mSpotOffer').onchange=e=>{DB.meta.spotOffer=num(e.target.value); syncSpot(); save(); rerender();};
+}
+// keep FX Outright 'SPOT' row in step with the header spot
+function syncSpot(){
+  const o=DB.tables.outright.rows.find(r=>String(r.period).toUpperCase()==='SPOT');
+  if(o){ o.bid=DB.meta.spotBid; o.offer=DB.meta.spotOffer; }
+}
+/* ============================================================
+   Page renderers
+   ============================================================ */
+function renderPage(id){
+  const c=$('#content'); c.innerHTML='';
+  ({entry:pageEntry, closing:pageClosing, fis:pageFIS, fxprem:pageFXPrem, fxdet:pageFXDet,
+    summary:pageSummary, lkr:pageLKR, broker:pageBroker, structure:pageStructure, exportall:pageExportAll}[id]||pageEntry)(c);
+}
+
+function pageHeader(c,title,desc){
+  const h=el('div','pagehdr'); h.appendChild(el('h2',null,title)); if(desc)h.appendChild(el('p',null,desc)); c.appendChild(h);
+}
+function exportBar(c,fname,fn,extra){
+  const bar=el('div','exportbar');
+  bar.appendChild(el('span','lbl','Export'));
+  bar.appendChild(el('span','fname',fname));
+  const b=el('button','btn amber','⬇  Download .xlsx'); b.onclick=fn; bar.appendChild(b);
+  if(extra) extra.forEach(x=>bar.appendChild(x));
+  c.appendChild(bar);
+}
+
+/* ---------- DATA ENTRY (master) ---------- */
+function pageEntry(c){
+  pageHeader(c,'Data Entry','Enter each rate once. The distribution sheets in the left menu are generated from this data — edit a value here and every sheet that uses it updates. Each table below holds only its own unique fields.');
+  const flow=el('div','card'); const fh=el('div','head'); fh.appendChild(el('h3',null,'How the data flows'));
+  flow.appendChild(fh);
+  const fb=el('div'); fb.style.padding='14px 16px';
+  fb.innerHTML='<div class="small" style="line-height:1.7">'+
+    'Spot &amp; premiums feed: <span class="badge">FX Premiums</span> <span class="badge">FX Detailed</span> <span class="badge">Rates Summary</span> <span class="badge">Rates LKR</span><br>'+
+    'T-Bill / T-Bond curves feed: <span class="badge">Closing</span> <span class="badge">FIS</span> <span class="badge">Rates Summary</span> <span class="badge">Broker Sheet</span><br>'+
+    'Call / Repo / Money feed: <span class="badge">FIS</span> <span class="badge">Rates Summary</span>'+
+    '<div style="margin-top:12px;padding-top:11px;border-top:1px solid #f0ead9;color:#5f7386">'+
+    'Keyboard: <span class="kbd">Enter</span> next line (adds a row at the bottom) · '+
+    '<span class="kbd">Shift+Enter</span> up · <span class="kbd">↑ ↓ ← →</span> move between cells · '+
+    '<span class="kbd">Tab</span> next field · '+
+    '<span class="kbd">Paste</span> a block from Excel to fill many cells at once</div></div>';
+  flow.appendChild(fb); c.appendChild(flow);
+
+  const g2=el('div','grid-2');
+  const left=el('div'), right=el('div');
+  left.appendChild(tableCard('tbill',{tag:DB.tables.tbill.rows.length+' lines',hint:'ISIN-level bill curve. Used by Closing, FIS and Broker sheets.'}));
+  left.appendChild(tableCard('tbond',{tag:DB.tables.tbond.rows.length+' lines',hint:'ISIN / maturity-level bond curve. Used by Closing, FIS, Summary and Broker sheets.'}));
+  right.appendChild(tableCard('premium',{tag:'per tenor',hint:'Forward premiums by tenor. Bid/Offer feed every FX sheet; Payer/Receiver feed the detailed FX sheet.'}));
+  right.appendChild(tableCard('call',{tag:'call money'}));
+  right.appendChild(tableCard('repo',{tag:'repo'}));
+  right.appendChild(tableCard('money',{tag:'money market'}));
+  right.appendChild(tableCard('outright',{tag:'fx outright',hint:'SPOT row mirrors the header spot automatically.'}));
+  right.appendChild(tableCard('swap',{tag:'swap points'}));
+  right.appendChild(tableCard('tbillPeriod',{tag:'t-bill summary'}));
+  right.appendChild(tableCard('lkr',{tag:'lkr summary'}));
+  g2.appendChild(left); g2.appendChild(right); c.appendChild(g2);
+}
+
+/* ---------- CLOSING ---------- */
+function pageClosing(c){
+  pageHeader(c,'Closing Rates','Bills and bonds side by side by ISIN — the sheet circulated to counterparty banks. Edits here write back to the master curves.');
+  exportBar(c,'Closing.xlsx',()=>exportClosing());
+  const g=el('div','grid-2');
+  const cardB=viewCurveCard('tbill','T- Bills'); const cardBn=viewCurveCard('tbond','T- Bonds');
+  g.appendChild(cardB); g.appendChild(cardBn); c.appendChild(g);
+}
+function viewCurveCard(name,label){
+  const card=el('div','card'); const h=el('div','head'); h.appendChild(el('h3',null,label));
+  const act=el('div','actions'); const add=el('button','btn sm','+ Row'); add.onclick=()=>addRow(name); act.appendChild(add); h.appendChild(act);
+  card.appendChild(h);
+  const body=el('div','body'); body.appendChild(renderGrid(name,{onEdit:()=>{}})); card.appendChild(body);
+  return card;
+}
+
+/* ---------- FIS ---------- */
+function pageFIS(c){
+  pageHeader(c,'FIS — Closing + Money','The closing curves plus the call and repo blocks, matching the FIS distribution format.');
+  exportBar(c,'FIS.xlsx',()=>exportFIS());
+  const g=el('div','grid-2');
+  g.appendChild(viewCurveCard('tbill','T- Bills'));
+  const right=el('div');
+  right.appendChild(viewCurveCard('tbond','T- Bonds'));
+  right.appendChild(tableCard('call',{tag:'call'}));
+  right.appendChild(tableCard('repo',{tag:'repo'}));
+  g.appendChild(right); c.appendChild(g);
+}
+
+/* ---------- FX PREMIUMS (letter) ---------- */
+function pageFXPrem(c){
+  pageHeader(c,'FX Forward Premiums','The forward-premium letter (FX.xlsx) and the short premium note (Rates.xlsx). Spot and premiums come straight from the master data.');
+  const extra=[]; const b2=el('button','btn dark','⬇  Rates.xlsx (short)'); b2.onclick=()=>exportRatesShort(); extra.push(b2);
+  exportBar(c,'FX.xlsx',()=>exportFX(),extra);
+  // letter preview
+  const doc=el('div','doc');
+  doc.appendChild(el('div','dh','As of '+fmtDate(DB.meta.reportDate)));
+  doc.appendChild(el('h2',null,DB.meta.broker));
+  const addr=el('div','addr'); addr.innerHTML='National Development Bank PLC<br>Dharmapala Mawatha, Colombo 7.<br><b>Attention:</b> Manager – Treasury Operations';
+  doc.appendChild(addr);
+  doc.appendChild(el('div',null,'Here are the Forward Premiums as of '+fmtDate(DB.meta.reportDate)+'.'));
+  const spot=el('div'); spot.style.margin='10px 0'; spot.style.fontFamily='var(--mono)';
+  spot.innerHTML='SPOT — <b>'+nf(DB.meta.spotBid,2)+' / '+nf(DB.meta.spotOffer,2)+'</b>';
+  doc.appendChild(spot);
+  c.appendChild(doc);
+  c.appendChild(tableCard('premium',{tag:'edit premiums',hint:'These feed both FX.xlsx and the short Rates.xlsx note.'}));
+}
+
+/* ---------- FX DETAILED ---------- */
+function pageFXDet(c){
+  pageHeader(c,'FX Forward — Detailed','The dealer working sheet (FX_1.xlsx) with tenor, days, payer, receiver and the resulting bid/offer premiums.');
+  exportBar(c,'FX_1.xlsx',()=>exportFXDet());
+  c.appendChild(tableCard('premium',{tag:'tenor · nod · payer · receiver · bid · offer'}));
+}
+
+/* ---------- RATES SUMMARY (Rates_2) ---------- */
+function pageSummary(c){
+  pageHeader(c,'Global Markets Summary','The consolidated sheet to Manager – Global Markets Finance (Rates_2.xlsx): outright FX, swap points, repo, money, the T-Bill period summary and the T-Bond maturity list.');
+  exportBar(c,'Rates_2.xlsx',()=>exportSummary());
+  const g=el('div','grid-2'); const L=el('div'),R=el('div');
+  L.appendChild(tableCard('outright',{tag:'fx outright'}));
+  L.appendChild(tableCard('swap',{tag:'swap points'}));
+  L.appendChild(tableCard('repo',{tag:'repo'}));
+  L.appendChild(tableCard('money',{tag:'money'}));
+  L.appendChild(tableCard('tbillPeriod',{tag:'t-bill summary'}));
+  R.appendChild(viewCurveCard('tbond','T-Bond maturity list'));
+  g.appendChild(L); g.appendChild(R); c.appendChild(g);
+}
+
+/* ---------- LKR (Rates_3) ---------- */
+function pageLKR(c){
+  pageHeader(c,'LKR Rates Sheet','The premium table plus the LKR bid/offer summary (Rates_3.xlsx).');
+  exportBar(c,'Rates_3.xlsx',()=>exportLKR());
+  const g=el('div','grid-2');
+  g.appendChild(tableCard('premium',{tag:'forward premiums'}));
+  g.appendChild(tableCard('lkr',{tag:'lkr summary',hint:'Use a dash “-” for tenors with no quote.'}));
+  c.appendChild(g);
+}
+
+/* ---------- BROKER SHEET ---------- */
+function pageBroker(c){
+  pageHeader(c,'Broker Rate Sheet','The multi-broker input sheet. MVS Money Brokers’ bid/ask are captured here; the other seven broker columns are exported blank, exactly like the source template.');
+  exportBar(c,'T-Bill_T-Bond_Rate_Input_Sheet.xlsx',()=>exportBroker());
+  const info=el('div','card'); const ih=el('div','head'); ih.appendChild(el('h3',null,'Brokers in export'));
+  info.appendChild(ih);
+  const ib=el('div'); ib.style.padding='12px 16px'; ib.className='flow';
+  DB.brokers.forEach(b=>{const chip=el('span','chip'); chip.innerHTML=(b.includes('MVS')?'<b>'+b+'</b>':b); ib.appendChild(chip);});
+  info.appendChild(ib); c.appendChild(info);
+  const g=el('div','grid-2');
+  g.appendChild(tableCard('brokerBill',{tag:'bills'}));
+  g.appendChild(tableCard('brokerBond',{tag:'bonds'}));
+  c.appendChild(g);
+}
+
+/* ---------- STRUCTURE ---------- */
+function pageStructure(c){
+  pageHeader(c,'Columns & Structure','Add, rename, retype or remove a column on any table. Changes apply everywhere that table is used, including the exports. Renaming a header is safe; removing a column drops its data.');
+  Object.keys(DB.tables).forEach(name=>{
+    const t=DB.tables[name];
+    const card=el('div','card');
+    const h=el('div','head'); h.appendChild(el('h3',null,t.label)); h.appendChild(el('span','tag',name));
+    const act=el('div','actions'); const add=el('button','btn sm','+ Column'); add.onclick=()=>addColumn(name); act.appendChild(add); h.appendChild(act);
+    card.appendChild(h);
+    const body=el('div');
+    t.cols.forEach((col,ci)=>{
+      const row=el('div','colrow');
+      row.appendChild(el('span','ck',col[0]));
+      const lbl=el('input'); lbl.value=col[1]; lbl.style.flex='1';
+      lbl.onchange=()=>{col[1]=lbl.value.trim()||col[0]; save(); toast('Header renamed');};
+      row.appendChild(lbl);
+      const sel=el('select');
+      [['text','Text'],['num','Number'],['date','Date']].forEach(o=>{const op=el('option',null,o[1]); op.value=o[0]; if(col[2]===o[0])op.selected=true; sel.appendChild(op);});
+      sel.onchange=()=>{col[2]=sel.value; save(); toast('Type changed');};
+      row.appendChild(sel);
+      const del=el('button','iconbtn','×'); del.title='Remove column';
+      del.onclick=()=>{ if(t.cols.length<=1){toast('Keep at least one column');return;} t.cols.splice(ci,1); t.rows.forEach(r=>delete r[col[0]]); save(); rerender(); };
+      row.appendChild(del);
+      body.appendChild(row);
+    });
+    card.appendChild(body);
+    c.appendChild(card);
+  });
+}
+function addColumn(name){
+  const t=DB.tables[name];
+  const key='c'+Date.now().toString(36);
+  const label=prompt('New column header:','New Column'); if(label===null) return;
+  const type=(prompt('Type — text / num / date:','num')||'num').trim().toLowerCase();
+  t.cols.push([key,label||key,['text','num','date'].includes(type)?type:'text']);
+  t.rows.forEach(r=>r[key]=null); save(); rerender();
+}
+
+/* ---------- EXPORT ALL ---------- */
+function pageExportAll(c){
+  pageHeader(c,'Export & Verify','Generate every distribution file as a separate .xlsx, matching the original layouts. Run the check to confirm every number and date in every sheet is written exactly as entered — then export with confidence.');
+
+  // verification panel
+  const vcard=el('div','card');
+  const vh=el('div','head'); vh.appendChild(el('h3',null,'Accuracy check'));
+  const vtag=el('span','tag','round-trip'); vh.appendChild(vtag);
+  const vact=el('div','actions'); const vbtn=el('button','btn dark','Run check'); vact.appendChild(vbtn); vh.appendChild(vact);
+  vcard.appendChild(vh);
+  const vbody=el('div'); vbody.style.padding='4px 0'; vcard.appendChild(vbody);
+  c.appendChild(vcard);
+
+  function runCheck(){
+    vbody.innerHTML='';
+    let results; try{ results=verifyAll(); }catch(err){ vbody.appendChild(el('div','hint','Check needs the export library (loads from CDN). '+err.message)); return; }
+    let total=0, fails=0;
+    results.forEach(r=>{ total+=r.checked; if(r.bad.length)fails+=r.bad.length;
+      const row=el('div','colrow');
+      const ok=r.bad.length===0;
+      const dot=el('span',null, ok?'✓':'✕'); dot.style.color=ok?'var(--green)':'var(--red)'; dot.style.fontWeight='700'; dot.style.width='18px';
+      row.appendChild(dot);
+      const nm=el('span',null,r.file); nm.style.flex='1'; nm.style.fontFamily='var(--mono)'; nm.style.fontSize='12px'; row.appendChild(nm);
+      row.appendChild(el('span','badge', r.checked+' values'));
+      if(!ok){ const b=el('span','badge','⚠ '+r.bad.length+' off'); b.style.color='var(--red)'; row.appendChild(b); }
+      vbody.appendChild(row);
+    });
+    const sum=el('div'); sum.style.padding='12px 16px'; sum.style.fontSize='13px';
+    if(fails===0){ sum.style.background='#eef7f0'; sum.style.color='#1f7a4d';
+      sum.innerHTML='<b>All correct.</b> '+total+' numeric &amp; date values across 8 files were written and read back with zero differences.'; }
+    else { sum.style.background='#fbeeec'; sum.style.color='#b23b2e';
+      sum.innerHTML='<b>'+fails+' value(s) need attention.</b> See the flagged files above.'; }
+    vbody.appendChild(sum);
+    vtag.textContent = fails===0?'verified':'issues';
+    vtag.style.color = fails===0?'var(--green)':'var(--red)';
+  }
+  vbtn.onclick=runCheck;
+
+  const list=[
+    ['Closing.xlsx',exportClosing],['FIS.xlsx',exportFIS],['FX.xlsx',exportFX],['Rates.xlsx',exportRatesShort],
+    ['FX_1.xlsx',exportFXDet],['Rates_2.xlsx',exportSummary],['Rates_3.xlsx',exportLKR],
+    ['T-Bill_T-Bond_Rate_Input_Sheet.xlsx',exportBroker]
+  ];
+  const card=el('div','card'); const h=el('div','head'); h.appendChild(el('h3',null,'Files')); card.appendChild(h);
+  const body=el('div');
+  list.forEach(([fn,f])=>{
+    const row=el('div','colrow');
+    row.appendChild(el('span',null,'📄')); const nm=el('span',null,fn); nm.style.flex='1'; nm.style.fontFamily='var(--mono)'; nm.style.fontSize='12px'; row.appendChild(nm);
+    const b=el('button','btn sm','Download'); b.onclick=f; row.appendChild(b);
+    body.appendChild(row);
+  });
+  card.appendChild(body); c.appendChild(card);
+  const bar=el('div','exportbar');
+  bar.appendChild(el('span','lbl','All at once'));
+  const b=el('button','btn amber','⬇  Download all 8 files');
+  b.onclick=async()=>{ for(const [fn,f] of list){ f(); await new Promise(r=>setTimeout(r,450)); } toast('All files exported'); };
+  bar.appendChild(b); c.appendChild(bar);
+
+  runCheck(); // auto-run on open
+}
+/* ============================================================
+   Excel export — reconstructs each original file's layout, and
+   can VERIFY every generated file round-trips losslessly.
+   Uses xlsx-js-style (global XLSX).
+   ============================================================ */
+const STY={
+  hdr:{font:{bold:true,color:{rgb:"FFFFFF"},sz:10,name:"Arial"},fill:{fgColor:{rgb:"0B1F33"}},alignment:{horizontal:"center",vertical:"center"},border:bd("2A4B6B")},
+  hdrL:{font:{bold:true,color:{rgb:"FFFFFF"},sz:10,name:"Arial"},fill:{fgColor:{rgb:"0B1F33"}},alignment:{horizontal:"left",vertical:"center"},border:bd("2A4B6B")},
+  title:{font:{bold:true,sz:11,name:"Arial",color:{rgb:"0B1F33"}}},
+  label:{font:{name:"Arial",sz:10,color:{rgb:"33475B"}}},
+  bold:{font:{bold:true,name:"Arial",sz:10}},
+  num:{font:{name:"Arial",sz:10},alignment:{horizontal:"right"},numFmt:"0.00",border:bd("E2E2E2")},
+  int:{font:{name:"Arial",sz:10},alignment:{horizontal:"right"},numFmt:"0",border:bd("E2E2E2")},
+  txt:{font:{name:"Arial",sz:10},border:bd("E2E2E2")},
+  date:{font:{name:"Arial",sz:10},numFmt:"d-mmm-yyyy",alignment:{horizontal:"left"},border:bd("E2E2E2")}
+};
+function bd(rgb){const s={style:"thin",color:{rgb:rgb}};return{top:s,bottom:s,left:s,right:s};}
+function C(v,s){ return {v:v==null?"":v, t:typeof v==="number"?"n":"s", s:s||STY.txt}; }
+function Cn(v,s){ if(v==null||v===""||isNaN(Number(v))) return C(v==null?"":v, s||STY.txt); return {v:Number(v),t:"n",s:s||STY.num}; }
+function Cd(v,s){ const ser=excelSerial(v); if(ser==null) return C(v||"",s||STY.txt); return {v:ser,t:"n",s:s||STY.date}; }
+function Ch(v,left){ return {v:v,t:"s",s:left?STY.hdrL:STY.hdr}; }
+function Ct(v,s){ return {v:v,t:"s",s:s||STY.title}; }
+function Cdt(){ return {v:dateSerial(),t:"n",s:{...STY.label,numFmt:"d-mmm-yyyy"}}; }
+
+function wsFrom(rows, cols, merges){
+  const ws={}; let maxR=0,maxC=0;
+  rows.forEach((row,r)=>{ if(!row) return; row.forEach((cell,c)=>{ if(cell==null) return;
+    ws[XLSX.utils.encode_cell({r,c})]=cell; if(r>maxR)maxR=r; if(c>maxC)maxC=c; }); });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(maxR,0),c:Math.max(maxC,0)}});
+  if(cols) ws['!cols']=cols.map(w=>({wch:w}));
+  if(merges) ws['!merges']=merges;
+  return ws;
+}
+const T=n=>DB.tables[n].rows;
+const dateSerial=()=>excelSerial(DB.meta.reportDate);
+
+/* ---------- BUILDERS: each returns {file, sheets:[[name, rows2D, cols]]} ---------- */
+function closingRows(){
+  const bills=T('tbill'), bonds=T('tbond'), n=Math.max(bills.length,bonds.length); const rows=[];
+  rows[1]=[C("Date :",STY.label), Cdt()];
+  rows[3]=[Ct("T- Bills"),null,null,null,null,Ct("T- Bonds")];
+  rows[4]=[Ch("ISIN",1),Ch("Maturity Date",1),Ch("OFFER"),Ch("BID"),null,Ch("ISIN",1),Ch("Maturity Date",1),Ch("OFFER"),Ch("BID")];
+  for(let i=0;i<n;i++){ const r=[]; const b=bills[i], d=bonds[i];
+    if(b){ r[0]=C(b.isin||""); r[1]=Cd(b.maturity); r[2]=Cn(b.offer); r[3]=Cn(b.bid); }
+    if(d){ r[5]=C(d.isin||""); r[6]=Cd(d.maturity); r[7]=Cn(d.offer); r[8]=Cn(d.bid); }
+    rows[5+i]=r; } return rows;
+}
+function buildClosing(){ return {file:"Closing.xlsx", sheets:[["Sheet1", closingRows(), [16,14,9,9,3,16,14,9,9]]]}; }
+function buildFIS(){
+  const rows=closingRows(); const call=T('call'), repo=T('repo');
+  (rows[4]=rows[4]||[]); rows[4][11]=Ch("Call",1); rows[4][12]=Ch("BID"); rows[4][13]=Ch("OFFER");
+  call.forEach((r,i)=>{ const rr=rows[5+i]||(rows[5+i]=[]); rr[11]=C(r.tenor||""); rr[12]=Cn(r.bid); rr[13]=Cn(r.offer); });
+  const rp=5+call.length+1; const rh=rows[rp]||(rows[rp]=[]); rh[11]=Ch("REPO",1); rh[12]=Ch("BID"); rh[13]=Ch("OFFER");
+  repo.forEach((r,i)=>{ const rr=rows[rp+1+i]||(rows[rp+1+i]=[]); rr[11]=C(r.tenor||""); rr[12]=Cn(r.bid); rr[13]=Cn(r.offer); });
+  return {file:"FIS.xlsx", sheets:[["Sheet1", rows, [16,14,9,9,3,16,14,9,9,3,3,8,8,8]]]};
+}
+function premiumRows(){
+  const p=T('premium'); const rows=[];
+  rows[0]=[Cdt()]; rows[1]=[Ct(DB.meta.broker)];
+  rows[3]=[C("National Development Bank PLC",STY.label)]; rows[4]=[C("Dharmapala Mawatha",STY.label)]; rows[5]=[C("Colombo 7.",STY.label)];
+  rows[7]=[C("Attention : Manager - Treasury Operations",STY.label)];
+  rows[9]=[C("Here are the Forward Premiums as of",STY.label),null,null,null,Cdt()];
+  rows[11]=[Ct("SPOT - "+nf(DB.meta.spotBid,2)+"/"+nf(DB.meta.spotOffer,2))];
+  rows[12]=[null,Ch("Bid"),Ch("Offer"),Ch("No.of Days")];
+  p.forEach((r,i)=>{ rows[13+i]=[C(" "+(r.tenor||"")),Cn(r.bid,STY.int),Cn(r.offer,STY.int),Cn(r.nod,STY.int)]; });
+  return rows;
+}
+function buildFX(){ return {file:"FX.xlsx", sheets:[["Premiums", premiumRows(), [10,10,10,12]]]}; }
+function buildRatesShort(){
+  const p=T('premium'), pick=['1W','2W','1M','2M','3M'], rows=[];
+  rows[0]=[Ct(DB.meta.broker)]; rows[2]=[C("Attention : Manager - Treasury Operations",STY.label)];
+  rows[4]=[C("Here are the Forward Premiums as of",STY.label),null,null,null,Cdt()];
+  rows[5]=[C("Attention : Manager - Treasury Operations",STY.label)];
+  rows[8]=[Ct("SPOT - "+nf(DB.meta.spotBid,2)+"/"+nf(DB.meta.spotOffer,2))];
+  let ri=10; pick.forEach(tn=>{ const r=p.find(x=>String(x.tenor).toUpperCase()===tn); if(r){ rows[ri++]=[C(r.tenor),Cn(r.bid,STY.int),Cn(r.offer,STY.int)]; } });
+  return {file:"Rates.xlsx", sheets:[["Premiums", rows, [10,10,10]]]};
+}
+function buildFXDet(){
+  const p=T('premium'), rows=[];
+  rows[2]=[null,Ch("TENOR"),Ch("NOD"),Ch("PAYER"),Ch("RECIEVER"),Ch("BID"),Ch("OFFER")];
+  p.forEach((r,i)=>{ rows[3+i]=[null,C(" "+(r.tenor||"")),Cn(r.nod,STY.int),Cn(r.payer),Cn(r.receiver),Cn(r.bid,STY.int),Cn(r.offer,STY.int)]; });
+  return {file:"FX_1.xlsx", sheets:[["Premiums", premiumRows(), [10,10,10,12]],["Sheet1", rows, [3,8,8,10,10,10,10]]]};
+}
+function buildSummary(){
+  const rows=[]; const out=T('outright'), swap=T('swap'), repo=T('repo'), money=T('money'), tp=T('tbillPeriod'), bonds=T('tbond');
+  rows[1]=[null,Ct("MVS"),C("To : Manager Global Markets Finance",STY.bold)];
+  rows[3]=[null,null,C("Broker Name:",STY.label),C(DB.meta.broker,STY.bold)];
+  rows[5]=[null,null,C("Date :",STY.label),Cdt()];
+  rows[7]=[null,null,null,Ch("Bid"),Ch("Offer")];
+  rows[8]=[null,null,C("SPOT",STY.bold),Cn(DB.meta.spotBid),Cn(DB.meta.spotOffer)];
+  const outRest=out.filter(r=>String(r.period).toUpperCase()!=='SPOT');
+  outRest.forEach((r,i)=>{ rows[9+i]=[null,null,C(r.period,STY.bold),Cn(r.bid),Cn(r.offer)]; });
+  const shR=8+Math.max(1+outRest.length,4)+2;
+  rows[shR]=[null,null,Ct("Swap points"),null,null,null,Ct("Repo"),null,null,Ct("Money")];
+  rows[shR+1]=[null,null,Ch("Period",1),Ch("No.of Days"),Ch("Payer"),Ch("Receiver"),Ch("Period",1),Ch("Bid"),Ch("Offer"),Ch("Bid"),Ch("Offer")];
+  swap.forEach((r,i)=>{ const rr=[null,null,C(r.period),Cn(r.nod,STY.int),Cn(r.payer,STY.int),Cn(r.receiver,STY.int)];
+    if(repo[i]){ rr[6]=C(repo[i].tenor); rr[7]=Cn(repo[i].bid); rr[8]=Cn(repo[i].offer); }
+    if(money[i]){ rr[9]=Cn(money[i].bid); rr[10]=Cn(money[i].offer); } rows[shR+2+i]=rr; });
+  const tbR=shR+2+Math.max(swap.length,3)+2;
+  rows[tbR]=[null,null,Ct("Treasury Bill Rates"),null,null,null,Ct("Treasury Bond Rates")];
+  rows[tbR+1]=[null,null,Ch("Period",1),Ch("Offer"),Ch("Bid"),null,Ch("Maturity",1),Ch("Offer"),Ch("Bid")];
+  const n=Math.max(tp.length,bonds.length);
+  for(let i=0;i<n;i++){ const rr=[null,null];
+    if(tp[i]){ rr[2]=C(tp[i].period); rr[3]=Cn(tp[i].offer); rr[4]=Cn(tp[i].bid); }
+    if(bonds[i]){ rr[6]=Cd(bonds[i].maturity); rr[7]=Cn(bonds[i].offer); rr[8]=Cn(bonds[i].bid); }
+    rows[tbR+2+i]=rr; }
+  return {file:"Rates_2.xlsx", sheets:[["Sheet1", rows, [2,6,12,11,9,9,3,10,8,8,8]]]};
+}
+function buildLKR(){
+  const p=T('premium'), lkr=T('lkr'), rows=[];
+  rows[0]=[null,C("Date:",STY.label),Cdt()];
+  rows[1]=[null,Ct(DB.meta.broker)];
+  rows[3]=[null,Ct("SPOT - "+nf(DB.meta.spotBid,2)+"/"+nf(DB.meta.spotOffer,2)),null,null,null,null,Ch("LKR"),Ch("LKR OFFER")];
+  rows[4]=[null,null,Ch("Bid"),Ch("Offer"),Ch("No.of Days")];
+  p.forEach((r,i)=>{ rows[5+i]=rows[5+i]||[]; const rr=rows[5+i]; rr[1]=C(" "+(r.tenor||"")); rr[2]=Cn(r.bid,STY.int); rr[3]=Cn(r.offer,STY.int); rr[4]=Cn(r.nod,STY.int); });
+  lkr.forEach((r,i)=>{ rows[4+i]=rows[4+i]||[]; const rr=rows[4+i]; rr[5]=C(r.tenor); rr[6]=(r.bid==null?C("-"):Cn(r.bid)); rr[7]=(r.offer==null?C("-"):Cn(r.offer)); });
+  return {file:"Rates_3.xlsx", sheets:[["Sheet1", rows, [2,6,9,9,11,3,6,10]]]};
+}
+function buildBroker(){
+  const bill=T('brokerBill'), bond=T('brokerBond'), brokers=DB.brokers; const rows=[]; const nData=Math.max(bill.length,bond.length);
+  const r0=[], r2=[], r3=[];
+  brokers.forEach((b,bi)=>{ const off=bi*7;
+    r0[off]=Ct("BROKER A/C-"+b);
+    r2[off]=Ch("TREASURY BILLS",1); r2[off+3]=Ch("TREASURY BONDS",1);
+    r3[off]=Ch("Maturity Date",1); r3[off+1]=Ch("Bid Rate"); r3[off+2]=Ch("Ask Rate");
+    r3[off+3]=Ch("Maturity Date",1); r3[off+4]=Ch("Bid Rate"); r3[off+5]=Ch("Ask Rate"); });
+  rows[0]=r0; rows[2]=r2; rows[3]=r3;
+  for(let i=0;i<nData;i++){ const rr=[]; brokers.forEach((b,bi)=>{ const off=bi*7, isMVS=b.includes('MVS');
+      if(bill[i]){ rr[off]=Cd(bill[i].maturity); if(isMVS){ rr[off+1]=Cn(bill[i].bid); rr[off+2]=Cn(bill[i].ask);} }
+      if(bond[i]){ rr[off+3]=Cd(bond[i].maturity); if(isMVS){ rr[off+4]=Cn(bond[i].bid); rr[off+5]=Cn(bond[i].ask);} } });
+    rows[4+i]=rr; }
+  const cols=[]; brokers.forEach(()=>cols.push(13,9,9,13,9,9,3));
+  return {file:"T-Bill_T-Bond_Rate_Input_Sheet.xlsx", sheets:[["Broker Rate Sheet", rows, cols]]};
+}
+const BUILDERS=[buildClosing,buildFIS,buildFX,buildRatesShort,buildFXDet,buildSummary,buildLKR,buildBroker];
+
+/* ---------- emit + verify ---------- */
+function wbFromBuilt(built){ const wb=XLSX.utils.book_new();
+  built.sheets.forEach(([nm,rows,cols])=>XLSX.utils.book_append_sheet(wb, wsFrom(rows,cols), nm)); return wb; }
+function downloadBuilt(built){ XLSX.writeFile(wbFromBuilt(built), built.file); toast('Exported '+built.file); }
+
+function verifyBuilt(built){
+  const wb=wbFromBuilt(built);
+  const buf=XLSX.write(wb,{type:'array',bookType:'xlsx'});
+  const wb2=XLSX.read(buf,{type:'array'});
+  let checked=0; const bad=[];
+  built.sheets.forEach(([nm,rows])=>{
+    const ws2=wb2.Sheets[nm];
+    rows.forEach((row,r)=>{ if(!row) return; row.forEach((cell,c)=>{ if(cell==null||cell.t!=='n') return;
+      checked++; const addr=XLSX.utils.encode_cell({r,c}); const got=ws2[addr]?ws2[addr].v:undefined;
+      if(got===undefined || Math.abs(Number(got)-Number(cell.v))>1e-9){ bad.push(nm+'!'+addr); }
+    }); });
+  });
+  return {file:built.file, checked, bad};
+}
+function verifyAll(){ return BUILDERS.map(b=>verifyBuilt(b())); }
+
+function exportClosing(){ downloadBuilt(buildClosing()); }
+function exportFIS(){ downloadBuilt(buildFIS()); }
+function exportFX(){ downloadBuilt(buildFX()); }
+function exportRatesShort(){ downloadBuilt(buildRatesShort()); }
+function exportFXDet(){ downloadBuilt(buildFXDet()); }
+function exportSummary(){ downloadBuilt(buildSummary()); }
+function exportLKR(){ downloadBuilt(buildLKR()); }
+function exportBroker(){ downloadBuilt(buildBroker()); }
+
+/* ---------- boot ---------- */
+buildNav(); bindMeta(); go('entry');
+</script>
+</body>
+</html>
